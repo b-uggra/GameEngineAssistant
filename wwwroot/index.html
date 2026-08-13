@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Akıllı Döküman Asistanı (RAG)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Markdown ve Kod Blokları Formatlama için Marked.js -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body class="bg-gray-900 text-gray-100 flex h-screen overflow-hidden">
+
+    <!-- Sol Panel: Döküman Yönetimi -->
+    <div class="w-1/4 bg-gray-800 border-r border-gray-700 p-4 flex flex-col justify-between">
+        <div>
+            <h1 class="text-xl font-bold mb-4 text-emerald-400">📚 Döküman Kütüphanesi</h1>
+            
+            <!-- Drag & Drop Upload -->
+            <div id="dropZone" class="border-2 border-dashed border-gray-600 rounded-lg p-4 text-center cursor-pointer hover:border-emerald-500 transition mb-4">
+                <p class="text-sm text-gray-400">PDF Dosyasını Sürükleyin veya Tıklayın</p>
+                <input type="file" id="fileInput" accept=".pdf" class="hidden">
+            </div>
+
+            <div id="uploadStatus" class="text-xs text-emerald-400 mb-2"></div>
+
+            <h2 class="text-xs uppercase font-semibold text-gray-400 mb-2">Aktif Dökümanlar</h2>
+            <ul id="docList" class="space-y-2 overflow-y-auto max-h-96"></ul>
+        </div>
+    </div>
+
+    <!-- Sağ Panel: Chat Arayüzü -->
+    <div class="w-3/4 flex flex-col justify-between p-6">
+        <div id="chatBox" class="flex-1 overflow-y-auto space-y-4 mb-4 pr-2">
+            <div class="bg-gray-800 p-4 rounded-lg max-w-2xl">
+                🤖 Merhaba Osman! Dökümanların yüklenmeye hazır. Yüklediğin PDF'lerden veya kütüphanedeki kitaplardan dilediğin soruyu sorabilirsin.
+            </div>
+        </div>
+
+        <div class="flex gap-2">
+            <input type="text" id="userInput" onkeypress="if(event.key === 'Enter') sendMessage()" placeholder="Dökümanlar veya kod yapıları hakkında soru sor..." class="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 focus:outline-none focus:border-emerald-500">
+            <button onclick="sendMessage()" class="bg-emerald-600 hover:bg-emerald-500 px-6 py-3 rounded-lg font-semibold transition">Gönder</button>
+        </div>
+    </div>
+
+    <script>
+        let selectedDocs = [];
+        let currentAbortController = null; // 💡 Aktif üretimi kontrol eden controller
+    
+        async function loadDocuments() {
+            const res = await fetch('/api/documents');
+            const docs = await res.json();
+            const list = document.getElementById('docList');
+            list.innerHTML = '';
+            
+            docs.forEach(doc => {
+                const isChecked = selectedDocs.includes(doc.documentId) ? 'checked' : '';
+                list.innerHTML += `
+                    <li class="flex items-center justify-between bg-gray-700 p-2 rounded text-sm">
+                        <label class="flex items-center gap-2 cursor-pointer truncate w-40">
+                            <input type="checkbox" value="${doc.documentId}" ${isChecked} onchange="toggleDocSelection('${doc.documentId}')" class="rounded text-emerald-500 focus:ring-0">
+                            <span class="truncate">${doc.documentName}</span>
+                        </label>
+                        <button onclick="deleteDoc('${doc.documentId}')" class="text-red-400 hover:text-red-300">🗑️</button>
+                    </li>
+                `;
+            });
+        }
+    
+        function toggleDocSelection(docId) {
+            if (selectedDocs.includes(docId)) {
+                selectedDocs = selectedDocs.filter(id => id !== docId);
+            } else {
+                selectedDocs.push(docId);
+            }
+        }
+    
+        async function deleteDoc(id) {
+            await fetch(`/api/documents/${id}`, { method: 'DELETE' });
+            loadDocuments();
+        }
+    
+        async function sendMessage() {
+            const input = document.getElementById('userInput');
+            const query = input.value.trim();
+            if (!query) return;
+    
+            // 💡 Eğer halen sürmekte olan bir üretim varsa onu iptal et
+            if (currentAbortController) {
+                currentAbortController.abort();
+            }
+            currentAbortController = new AbortController();
+    
+            const chatBox = document.getElementById('chatBox');
+            chatBox.innerHTML += `<div class="bg-emerald-900/50 p-4 rounded-lg ml-auto max-w-2xl">${query}</div>`;
+            input.value = '';
+    
+            const msgId = 'msg-' + Date.now();
+            chatBox.innerHTML += `
+                <div id="${msgId}" class="bg-gray-800 p-4 rounded-lg max-w-2xl relative group">
+                    <div id="${msgId}-text" class="text-sm space-y-2 leading-relaxed">🧠 Yanıt hazırlanıyor...</div>
+                    <div id="${msgId}-refs" class="mt-2 text-xs text-gray-500 border-t border-gray-700 pt-2 hidden"></div>
+                    <button onclick="stopGeneration()" id="${msgId}-stop" class="mt-2 text-xs bg-red-600/80 hover:bg-red-600 text-white px-2 py-1 rounded transition">⏹️ Üretimi Durdur</button>
+                </div>
+            `;
+            chatBox.scrollTop = chatBox.scrollHeight;
+    
+            const textEl = document.getElementById(`${msgId}-text`);
+            const refsEl = document.getElementById(`${msgId}-refs`);
+            const stopBtn = document.getElementById(`${msgId}-stop`);
+            let accumulatedAnswer = '';
+    
+            try {
+                const res = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query: query, documentIds: selectedDocs }),
+                    signal: currentAbortController.signal // 💡 AbortSignal bağlandı
+                });
+    
+                const reader = res.body.getReader();
+                const decoder = new TextDecoder('utf-8');
+                let buffer = '';
+    
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+    
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop() || '';
+    
+                    for (const line of lines) {
+                        const trimmed = line.trim();
+                        if (!trimmed.startsWith('data: ')) continue;
+    
+                        const dataStr = trimmed.substring(6).trim();
+                        if (dataStr === '[DONE]') break;
+    
+                        try {
+                            const data = JSON.parse(dataStr);
+    
+                            // Referansları Göster
+                            if (data.references && data.references.length > 0) {
+                                refsEl.classList.remove('hidden');
+                                refsEl.innerText = 'Referanslar: ' + data.references.map(r => (r.ChapterTitle || r.chapterTitle || 'Genel') + ' (S.' + (r.PageNumber || r.pageNumber || '?') + ')').join(', ');
+                            }
+    
+                            // Canlı Akışı Metne ve Markdown'a Çevir
+                            if (data.token) {
+                                accumulatedAnswer += data.token;
+                                textEl.innerHTML = marked.parse(accumulatedAnswer);
+                                chatBox.scrollTop = chatBox.scrollHeight;
+                            }
+                        } catch (e) {}
+                    }
+                }
+            } catch (err) {
+                if (err.name === 'AbortError') {
+                    accumulatedAnswer += '\n\n*(Üretim kullanıcı tarafından durduruldu)*';
+                    textEl.innerHTML = marked.parse(accumulatedAnswer);
+                } else {
+                    textEl.innerText = '❌ Yanıt alınırken bir hata oluştu.';
+                }
+            } finally {
+                if (stopBtn) stopBtn.remove(); // Üretim tamamlandığında durdur butonunu kaldır
+                currentAbortController = null;
+            }
+        }
+    
+        // 💡 Durdur Butonunun Çalıştırdığı Fonksiyon
+        function stopGeneration() {
+            if (currentAbortController) {
+                currentAbortController.abort();
+                currentAbortController = null;
+            }
+        }
+    
+        // Drag & Drop Dosya Yükleme
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+    
+        dropZone.onclick = () => fileInput.click();
+        fileInput.onchange = (e) => handleUpload(e.target.files[0]);
+    
+        dropZone.ondragover = (e) => { e.preventDefault(); dropZone.classList.add('border-emerald-500'); };
+        dropZone.ondragleave = () => dropZone.classList.remove('border-emerald-500');
+        dropZone.ondrop = (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('border-emerald-500');
+            if (e.dataTransfer.files.length > 0) {
+                handleUpload(e.dataTransfer.files[0]);
+            }
+        };
+    
+        async function handleUpload(file) {
+            if (!file) return;
+            const formData = new FormData();
+            formData.append('file', file);
+            document.getElementById('uploadStatus').innerText = '⏳ PDF Okunuyor ve Vektörleştiriliyor...';
+    
+            const res = await fetch('/api/documents/upload', { method: 'POST', body: formData });
+            if (res.ok) {
+                document.getElementById('uploadStatus').innerText = '✅ Yüklendi ve İşlendi!';
+                loadDocuments();
+            } else {
+                document.getElementById('uploadStatus').innerText = '❌ Hata oluştu.';
+            }
+        }
+    
+        loadDocuments();
+    </script>
+</body>
+</html>

@@ -1,0 +1,33 @@
+{
+  "version": 2,
+  "dgSpecHash": "lVqFZrrU7EA=",
+  "success": true,
+  "projectFilePath": "/Users/bugra/GameEngineAssistant/GameEngineAssistant.csproj",
+  "expectedPackageFiles": [
+    "/Users/bugra/.nuget/packages/microsoft.data.sqlite/9.0.2/microsoft.data.sqlite.9.0.2.nupkg.sha512",
+    "/Users/bugra/.nuget/packages/microsoft.data.sqlite.core/9.0.2/microsoft.data.sqlite.core.9.0.2.nupkg.sha512",
+    "/Users/bugra/.nuget/packages/sqlitepclraw.bundle_e_sqlite3/2.1.10/sqlitepclraw.bundle_e_sqlite3.2.1.10.nupkg.sha512",
+    "/Users/bugra/.nuget/packages/sqlitepclraw.core/2.1.10/sqlitepclraw.core.2.1.10.nupkg.sha512",
+    "/Users/bugra/.nuget/packages/sqlitepclraw.lib.e_sqlite3/2.1.11/sqlitepclraw.lib.e_sqlite3.2.1.11.nupkg.sha512",
+    "/Users/bugra/.nuget/packages/sqlitepclraw.provider.e_sqlite3/2.1.10/sqlitepclraw.provider.e_sqlite3.2.1.10.nupkg.sha512",
+    "/Users/bugra/.nuget/packages/uglytoad.pdfpig/1.7.0-custom-5/uglytoad.pdfpig.1.7.0-custom-5.nupkg.sha512",
+    "/Users/bugra/.nuget/packages/uglytoad.pdfpig.core/1.7.0-custom-5/uglytoad.pdfpig.core.1.7.0-custom-5.nupkg.sha512",
+    "/Users/bugra/.nuget/packages/uglytoad.pdfpig.fonts/1.7.0-custom-5/uglytoad.pdfpig.fonts.1.7.0-custom-5.nupkg.sha512",
+    "/Users/bugra/.nuget/packages/uglytoad.pdfpig.tokenization/1.7.0-custom-5/uglytoad.pdfpig.tokenization.1.7.0-custom-5.nupkg.sha512",
+    "/Users/bugra/.nuget/packages/uglytoad.pdfpig.tokens/1.7.0-custom-5/uglytoad.pdfpig.tokens.1.7.0-custom-5.nupkg.sha512"
+  ],
+  "logs": [
+    {
+      "code": "NU1903",
+      "level": "Warning",
+      "message": "'SQLitePCLRaw.lib.e_sqlite3' 2.1.11 paketinde önem derecesi yüksek olan bilinen bir https://github.com/advisories/GHSA-2m69-gcr7-jv3q güvenlik açığı var",
+      "projectPath": "/Users/bugra/GameEngineAssistant/GameEngineAssistant.csproj",
+      "warningLevel": 1,
+      "filePath": "/Users/bugra/GameEngineAssistant/GameEngineAssistant.csproj",
+      "libraryId": "SQLitePCLRaw.lib.e_sqlite3",
+      "targetGraphs": [
+        "net10.0"
+      ]
+    }
+  ]
+}
