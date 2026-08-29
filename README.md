@@ -199,9 +199,8 @@ http://localhost:5000
 ## 🧑‍💻 Geliştirici
 
 **Osman Buğra Örten**
-- 🎓 Yazılım Mühendisliği — 3. Sınıf
-- 🎮 Odak: Unity & C# ile oyun geliştirme
-- 🏢 Hedef: Bağımsız oyun stüdyosu kurmak
+- 🎓 Yazılım Mühendisliği — 4. Sınıf
+
 
 ---
 
