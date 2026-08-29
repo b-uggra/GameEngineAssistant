@@ -1,4 +1,4 @@
-﻿using GameEngineAssistant.Services;
+using GameEngineAssistant.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
@@ -92,7 +92,7 @@ app.MapPost("/api/chat", async (HttpContext http, ChatRequest req, BookSearchSer
     http.Response.Headers.Append("Content-Type", "text/event-stream");
     http.Response.Headers.Append("Cache-Control", "no-cache");
 
-    var searchResults = await searchService.SearchBookAsync(req.Query, req.DocumentIds, topK: 5);
+    var searchResults = await searchService.SearchBookAsync(req.Query, req.DocumentIds, topK: 8);
 
     // 1. Önce Referansları JSON Olarak İletiyoruz
     var refJson = JsonSerializer.Serialize(new { references = searchResults });

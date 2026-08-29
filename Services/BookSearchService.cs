@@ -30,23 +30,34 @@ namespace GameEngineAssistant.Services
             return $"http://127.0.0.1:{port}/v1/embeddings";
         }
 
-        public async Task<List<SearchResult>> SearchBookAsync(string query, List<string> targetDocumentIds = null, int topK = 5, float minSimilarityThreshold = 0.35f)
+        public async Task<List<SearchResult>> SearchBookAsync(string query, List<string> targetDocumentIds = null, int topK = 10, float minSimilarityThreshold = 0.20f)
         {
-            // 1. Boş Liste Kontrolü: Kullanıcı arayüzden döküman seçmediyse döküman araması yapma
-            if (targetDocumentIds != null && targetDocumentIds.Count == 0)
-            {
-                return new List<SearchResult>();
-            }
-
+            // Note: If targetDocumentIds is null or empty, search across ALL documents by default.
             float[] queryVector = await GetEmbeddingAsync(query);
             if (queryVector == null || queryVector.Length == 0) return new List<SearchResult>();
 
             var results = new List<SearchResult>();
 
+            // Extract key search terms and stem prefixes from query for hybrid reranking
+            var stopWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "nedir", "nasıl", "olur", "veya", "ve", "bir", "bu", "için", "ile", "gibi", "mi", "mı", "mu", "mü" };
+            var rawKeywords = query.Split(new[] { ' ', '?', '!', '.', ',', ':', ';', '\t' }, StringSplitOptions.RemoveEmptyEntries)
+                                   .Where(w => w.Length >= 3 && !stopWords.Contains(w))
+                                   .Select(w => w.ToLowerInvariant())
+                                   .ToList();
+
+            var keywords = new HashSet<string>(rawKeywords);
+            foreach (var kw in rawKeywords)
+            {
+                if (kw.Length > 5)
+                {
+                    keywords.Add(kw.Substring(0, 5));
+                }
+            }
+
             using var conn = new SqliteConnection($"Data Source={_dbPath};");
             await conn.OpenAsync();
 
-            string selectQuery = "SELECT chapter_title, page_number, content, embedding FROM BookChunks WHERE embedding IS NOT NULL";
+            string selectQuery = "SELECT chapter_title, page_number, content, embedding, document_name FROM BookChunks WHERE embedding IS NOT NULL";
             
             if (targetDocumentIds != null && targetDocumentIds.Count > 0)
             {
@@ -72,25 +83,44 @@ namespace GameEngineAssistant.Services
                 int page = reader.GetInt32(1);
                 string content = reader.GetString(2);
                 byte[] blob = (byte[])reader["embedding"];
+                string docName = reader.IsDBNull(4) ? "" : reader.GetString(4);
 
                 float[] chunkVector = ConvertToFloats(blob);
-                float similarity = CosineSimilarity(queryVector, chunkVector);
+                float baseSimilarity = CosineSimilarity(queryVector, chunkVector);
 
-                // 2. Benzerlik Eşiği Filtresi: Sadece %35 ve üzeri alakası olan parçaları ekliyoruz
-                if (similarity >= minSimilarityThreshold)
+                // Hybrid scoring: Vector Cosine Similarity + Keyword Match Bonus + Doc Match Bonus
+                float hybridScore = baseSimilarity;
+                string contentLower = content.ToLowerInvariant();
+                string docLower = docName.ToLowerInvariant();
+
+                int matchCount = 0;
+                foreach (var kw in keywords)
+                {
+                    if (contentLower.Contains(kw))
+                    {
+                        matchCount++;
+                    }
+                    if (docLower.Contains(kw))
+                    {
+                        hybridScore += 0.08f;
+                    }
+                }
+                hybridScore += matchCount * 0.06f;
+
+                if (hybridScore > 0.15f)
                 {
                     results.Add(new SearchResult
                     {
                         ChapterTitle = chapter,
                         PageNumber = page,
                         Content = content,
-                        Similarity = similarity
+                        Similarity = hybridScore
                     });
                 }
             }
 
-            // 3. Sıralama ve Tavan Sınırı: En yüksek skora sahip ilk 5 parçayı döndürüyoruz
-            return results.OrderByDescending(r => r.Similarity).Take(topK).ToList();
+            var sortedResults = results.OrderByDescending(r => r.Similarity).Take(topK).ToList();
+            return sortedResults;
         }
 
         public async Task<List<SearchResult>> SearchBookAsync(string query, int topK)

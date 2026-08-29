@@ -60,3 +60,4 @@
 /Users/bugra/GameEngineAssistant/bin/Debug/net10.0/runtimes/linux-musl-riscv64/native/libe_sqlite3.so
 /Users/bugra/GameEngineAssistant/bin/Debug/net10.0/runtimes/linux-riscv64/native/libe_sqlite3.so
 /Users/bugra/GameEngineAssistant/obj/Debug/net10.0/compressed/52j70mqdum-{0}-uum1kxowup-uum1kxowup.gz
+/Users/bugra/GameEngineAssistant/obj/Debug/net10.0/GameEngineAssistant.sourcelink.json
